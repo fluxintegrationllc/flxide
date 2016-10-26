@@ -1,0 +1,79 @@
+ 
+ /*
+ (c)2016 Flux Integration LLC
+  
+ Permission is hereby granted, free of charge, to any person 
+ obtaining a copy of this software and associated documentation 
+ files (the "Software"), to deal in the Software without 
+ restriction, including without limitation the rights to use, 
+ copy, modify, merge, publish, distribute, sublicense, and/or 
+ sell copies of the Software, and to permit persons to whom the 
+ Software is furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be 
+ included in all copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+function listen()
+{
+    var machine = FLX.WORKSPACE.getWorkspace().getMachineComponent('ALLY');
+    
+    var server = FLX.UTIL.newSocketServer(8390);
+    
+    var socket = server.accept();
+    
+    var streamReader = FLX.UTIL.newStreamReader(socket.getInputStream());
+    
+    var unit = FLX.GEOM.getLengthUnitType('MM');
+    
+    var pointLine;
+    var point;
+    var pointStartIndex;
+    var velocity;
+    var path;
+    var threadIndex = 0;
+    while((pointLine = streamReader.readLine()))
+    {
+        print(pointLine);
+        
+        pointStartIndex = pointLine.indexOf(",");
+        
+        if(pointStartIndex < 0)
+        {
+            continue;    
+        }
+        
+        velocity = parseFloat(pointLine.substring(0, pointStartIndex));
+        
+        point = FLX.GEOM.newPoint3D(pointLine.substring(pointStartIndex+1));
+        
+        if(!point)
+        {
+            continue;
+        }
+        
+        path = FLX.GEOM.newPath3D();
+        
+        path.lineTo(point);
+    
+        var workspaceMoveOperation = FLX.MACHINE.newMachineWorkspacePathOperation(machine.getMachine(), unit, path);
+        workspaceMoveOperation.setName("Server Thread: " + threadIndex++);
+        workspaceMoveOperation.setVelocity(FLX.MACHINE.newVelocity(FLX.MACHINE.getVelocityUnit(unit), velocity));
+        
+        var workspaceMoveThread = FLX.MACHINE.newMachineWorkspaceProgramThread();
+        workspaceMoveThread.setName(pointLine);
+        
+        workspaceMoveThread.addOperation(workspaceMoveOperation);
+        
+        FLX.WORKSPACE.getWorkspace().getMachineProgram().addActiveProgramThread(workspaceMoveThread);  
+    }
+}

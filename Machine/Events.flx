@@ -1,0 +1,113 @@
+
+ /*
+ (c)2016 Flux Integration LLC
+  
+ Permission is hereby granted, free of charge, to any person 
+ obtaining a copy of this software and associated documentation 
+ files (the "Software"), to deal in the Software without 
+ restriction, including without limitation the rights to use, 
+ copy, modify, merge, publish, distribute, sublicense, and/or 
+ sell copies of the Software, and to permit persons to whom the 
+ Software is furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be 
+ included in all copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+var machineScript = FLX.getResource('Machine.flx');
+
+load({script: machineScript.getCode(), name: machineScript.getIdentifier()})
+
+function add_machine_click(p)
+{
+    FLX.WORKSPACE.getWorkspace().getMenu().closeMenu();
+    
+    var uiEventScript = FLX.getResource('Events.flx');
+    
+    //create object bindings for new script instance
+    var invokerBindings = FLX.newInvokerBindings();
+    
+    var eventScriptInvoker = FLX.newScriptInvoker(uiEventScript.getBytes(), invokerBindings); 
+    
+    var workspaceFlow = FLX.newWorkspaceFlow(eventScriptInvoker, 'finish_add_machine'); 
+    workspaceFlow.setDescription("Add Machine");
+    
+    var workspaceFlowDialog = FLX.WORKSPACE.getWorkspace().addFlowDialog(workspaceFlow);
+    
+    var machineConfigurationsCollection = FLX.getCollection('persistence/configuration');
+    
+    if(!machineConfigurationsCollection)
+    {
+        print('Machine Configuration Collection not found');
+        return;
+    }
+    
+    var flowStep = workspaceFlow.addStringStep('Name', 'name');  
+    flowStep.setDescription('Enter Name');  
+    
+    flowStep = workspaceFlow.addChooseResourceStep('Machine Configuration', machineConfigurationsCollection, 'configuration');  
+    flowStep.setDescription('Select Configuration');
+    
+    FLX.WORKSPACE.getWorkspace().showFlowDialog(workspaceFlowDialog);    
+}
+
+function finish_add_machine(workspaceFlow, dialog)
+{
+    var name = workspaceFlow.getObject('name');
+    
+    if(!name)
+    {
+        print("Name not specified");
+        return false;
+    }
+    
+    var configuration = workspaceFlow.getObject('configuration');
+    
+    if(!configuration)
+    {
+        print("Configuration not specified");
+        return false;
+    }     
+    
+    var machineMap = {};
+    machineMap['name'] = name;
+    machineMap['configuration'] = configuration.getIdentifier();
+    
+    var machineCollection = FLX.getCollection('persistence');    
+    
+    var machineResource = FLX.getResourceConfiguration("json").createResource(FLX.WORKSPACE.getWorkspace().getDataSource(), machineCollection);
+    
+    if(!machineResource)
+    {
+        return false;
+    }
+
+    machineResource.setName(name);
+    
+    machineResource.setBytes(FLX.UTIL.toJSON(machineMap).getBytes());
+    
+    if(!machineCollection.addItem(machineResource))
+    {
+        return false;
+    }
+    
+    try{
+        machineResource.unload();
+    }catch(ex)
+    {
+        return false;
+    }    
+    
+    addMachineToWorkspace(machineMap);
+    
+    return true;
+}

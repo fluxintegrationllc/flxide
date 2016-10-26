@@ -1,0 +1,86 @@
+
+ /*
+ (c)2016 Flux Integration LLC
+  
+ Permission is hereby granted, free of charge, to any person 
+ obtaining a copy of this software and associated documentation 
+ files (the "Software"), to deal in the Software without 
+ restriction, including without limitation the rights to use, 
+ copy, modify, merge, publish, distribute, sublicense, and/or 
+ sell copies of the Software, and to permit persons to whom the 
+ Software is furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be 
+ included in all copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+function loadMachines()
+{
+    var machineCollection = FLX.getCollection('persistence'); 
+    
+    var machineResources = machineCollection.getResources();
+    
+    if(!machineResources)
+    {
+        return;
+    }
+    
+    var machineMap;
+    for each(var machineResource in machineResources)
+    {
+        machineMap = FLX.UTIL.fromJSON(FLX.UTIL.newString(machineResource.getBytes()));
+        
+        addMachineToWorkspace(machineMap);
+    }
+}
+
+function addMachineToWorkspace(machineMap)
+{
+    if(!machineMap['configuration'])
+    {
+        print('Machine Configuration not defined');
+        return;
+    }
+
+    var machineConfiguration = FLX.getResource('persistence/configuration/' + machineMap['configuration']);
+    
+    if(!machineConfiguration)
+    {
+        print('Machine Configuration Missing');
+        return;
+    }
+    
+    var machineComponent = FLX.MACHINE.newMachineWorkspaceComponent(machineConfiguration);
+    
+    if(!machineComponent)
+    {
+        print("Unable to create Machine");
+        return;
+    }
+    
+    machineComponent.setInstanceName(machineMap['name']);
+    
+    if(machineMap['matrix'])
+    {
+        machineComponent.setLocalMatrix(FLX.GEOM.newMatrix4D(machineMap['matrix']));
+    }
+    
+    try{
+        FLX.WORKSPACE.getWorkspace().addMachineComponent(machineComponent);
+    }catch(ex)
+    {
+        print(ex.toString());
+        return;
+    }
+        
+    FLX.WORKSPACE.getWorkspace().getGLPanelState().addSelectedComponent(machineComponent);    
+}

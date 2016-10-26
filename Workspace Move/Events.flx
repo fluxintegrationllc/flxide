@@ -1,0 +1,139 @@
+
+ /*
+ (c)2016 Flux Integration LLC
+  
+ Permission is hereby granted, free of charge, to any person 
+ obtaining a copy of this software and associated documentation 
+ files (the "Software"), to deal in the Software without 
+ restriction, including without limitation the rights to use, 
+ copy, modify, merge, publish, distribute, sublicense, and/or 
+ sell copies of the Software, and to permit persons to whom the 
+ Software is furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be 
+ included in all copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+function add_workspace_move_click(p)
+{
+    FLX.WORKSPACE.getWorkspace().getMenu().closeMenu();
+    
+    var uiEventScript = FLX.getResource('Events.flx');
+    
+    //create object bindings for new script instance
+    var invokerBindings = FLX.newInvokerBindings();
+    
+    var eventScriptInvoker = FLX.newScriptInvoker(uiEventScript.getBytes(), invokerBindings); 
+    
+    var workspaceFlow = FLX.newWorkspaceFlow(eventScriptInvoker, 'finish_add_workspace_move'); 
+    workspaceFlow.setDescription("Add Workspace Move");
+    
+    var workspaceFlowDialog = FLX.WORKSPACE.getWorkspace().addFlowDialog(workspaceFlow);
+
+    var flowStep = workspaceFlow.addStringStep('Name', 'name');  
+    flowStep.setDescription('Enter Name');
+    
+    flowStep = workspaceFlow.addChooseMachineStep('Machine', 'machine');  
+    flowStep.setDescription('Select Machine');
+    
+    flowStep = workspaceFlow.addChooseLengthUnitType('Unit', 'unit');  
+    flowStep.setDescription('Select Workspace Unit');
+    
+    flowStep = workspaceFlow.addDecimalStep('Velocity' + '(unit/s)', 'velocity');  
+    flowStep.setDescription('Enter Velocity'); 
+    
+    var pointsCollection = FLX.getCollection('/Point');
+    
+    if(!pointsCollection)
+    {
+        print('Points Collection not found');
+        return;
+    }
+    
+    flowStep = workspaceFlow.addChooseResourceStep('Points', pointsCollection, 'points');  
+    flowStep.setDescription('Select Points');    
+    
+    FLX.WORKSPACE.getWorkspace().showFlowDialog(workspaceFlowDialog);    
+}
+
+function finish_add_workspace_move(workspaceFlow, dialog)
+{
+    var name = workspaceFlow.getObject('name');
+    
+    if(!name)
+    {
+        print("Name not specified");
+        return false;
+    }
+    
+    var machine = workspaceFlow.getObject('machine');
+    
+    if(!machine)
+    {
+        print("Machine not specified");
+        return false;
+    }     
+    
+    var unit = workspaceFlow.getObject('unit');
+    
+    if(!unit)
+    {
+        unit = FLX.WORKSPACE.getWorkspace().getWorkspaceUnitType();
+    }    
+    
+    var velocity = workspaceFlow.getObject('velocity');
+    
+    if(!velocity)
+    {
+        print("Velocity not specified");
+        return false;
+    }  
+    
+    var pointsResource = workspaceFlow.getObject('points');
+    
+    if(!pointsResource)
+    {
+        print("Points not specified");
+        return false;
+    }   
+    
+    var path = FLX.GEOM.newPath3D();
+    
+    var pointsReader = FLX.UTIL.newStreamReader(pointsResource.getStream());
+    
+    var pointLine;
+    var point;
+    while((pointLine = pointsReader.readLine()))
+    {
+        point = FLX.GEOM.newPoint3D(pointLine);
+        
+        if(!point)
+        {
+            continue;
+        }
+        
+        path.lineTo(point);
+    }
+    
+    var workspaceMoveOperation = FLX.MACHINE.newMachineWorkspacePathOperation(machine.getMachine(), unit, path);
+    workspaceMoveOperation.setName(name);
+    workspaceMoveOperation.setVelocity(FLX.MACHINE.newVelocity(FLX.MACHINE.getVelocityUnit(unit), velocity));
+    
+    var workspaceMoveThread = FLX.MACHINE.newMachineWorkspaceProgramThread();
+    workspaceMoveThread.setName(name);
+    
+    workspaceMoveThread.addOperation(workspaceMoveOperation);
+    
+    FLX.WORKSPACE.getWorkspace().getMachineProgram().addActiveProgramThread(workspaceMoveThread);
+    
+    return true;
+}
